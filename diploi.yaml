@@ -1,0 +1,15 @@
+diploiVersion: v1.0
+type: component
+name: TanStack Start
+description: Official Diploi component for TanStack Start
+
+supportsAdditionalHosts: { serviceName: 'app' }
+
+hosts:
+  - name: App
+    identifier: app
+    port: 5173
+
+images:
+  - identifier: app
+    prebuildImage: public.ecr.aws/p8t2q7f4/diploi/component-tanstack-start:[tag]

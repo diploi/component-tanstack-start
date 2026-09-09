@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+spec:
+  selector:
+    matchLabels:
+      app: app
+  strategy:
+  {{- if eq .Values.stage "development"}}
+    type: Recreate
+  {{- else }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  {{- end }}
+  replicas: {{ ternary 1 0 .Values.enabled }}
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      terminationGracePeriodSeconds: 10
+      imagePullSecrets:
+        - name: diploi-pull-secret
+      {{- if eq .Values.stage "development"}}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      initContainers:
+        - name: install-dependencies
+          image: {{ .Values.images.app }}
+          imagePullPolicy: Always
+          command:
+          - /bin/sh
+          - -c
+          - |
+            if [ -f bun.lockb ] || [ -f bun.lock ]; then
+              bun install --frozen-lockfile || bun install
+            elif [ -f yarn.lock ]; then
+              yarn install --frozen-lockfile || yarn install
+            elif [ -f package-lock.json ]; then
+              npm ci || npm install
+            elif [ -f pnpm-lock.yaml ]; then
+              pnpm install --frozen-lockfile || pnpm install
+            elif [ -f package.json ]; then
+              echo "Lockfile not found. Falling back to npm install (non-deterministic install)."
+              npm install
+            else
+              echo "No package manifest found. Skipping install."
+            fi
+          workingDir: /app{{ .Values.folder }}
+          env:
+            - name: NODE_ENV
+              value: development
+          volumeMounts:
+            - name: app-mount
+              mountPath: /app
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ .Values.images.app }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5173
+          {{- if eq .Values.stage "development" }}
+          workingDir: /app{{ .Values.folder }}
+          {{- with .Values.containerCommands.developmentStart }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+          {{ . | nindent 14 }}
+          {{- end }}
+          {{- else }}
+          {{- with .Values.containerCommands.productionStart }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+          {{ . | nindent 14 }}
+          {{- end }}
+          {{- end }}
+          env:
+            - name: __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+              value: .diploi.me
+            {{- range .Values.env }}
+            - name: {{ .identifier }}
+              value: {{ .value | quote }}
+            {{- end }}
+          volumeMounts:
+            {{- if hasKey .Values.storage "code" }}
+            - name: app-mount
+              mountPath: /app
+            {{- end }}
+      volumes:
+        {{- if hasKey .Values.storage "code" }}
+        - name: app-mount
+          hostPath:
+            path: {{ .Values.storage.code.hostPath }}
+        {{- end }}
