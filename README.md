@@ -9,11 +9,9 @@
 Launch a trial, no account needed
 https://diploi.com/component/tanstack-start
 
-This template provides a minimal setup to get TanStack Start working in Diploi.
-
 Uses the official [node](https://hub.docker.com/_/node) Docker image.
 
-Server-side rendering is handled by [Nitro](https://nitro.build/), preconfigured through the TanStack Start Vite plugin.
+A minimal setup to get [TanStack Start](https://tanstack.com/start/latest) working in Diploi, with React, file-based routing from [TanStack Router](https://tanstack.com/router/latest) and [Tailwind CSS](https://tailwindcss.com/). Server-side rendering is handled by [Nitro](https://nitro.build/), preconfigured through its Vite plugin in `vite.config.ts`.
 
 ## Operation
 
@@ -43,30 +41,50 @@ This can be changed with the `containerCommands.developmentStart` field in `dipl
 
 ### Production
 
-Builds a production ready image. Image runs `npm install` & `npm run build` when being created, using the detected package manager. Once the image runs, `npm start` is called, which serves the Nitro build from `.output/`.
+Builds a production-ready image. Image runs `npm install` & `npm run build` when being created, using the detected package manager. `vite build` writes the Nitro server to `.output/`.
+
+Once the image runs, `npm start` is called, which starts the Nitro server:
+
+```sh
+node .output/server/index.mjs
+```
 
 This can be changed with the `containerCommands.productionStart` field in `diploi.yaml`.
 
 #### ENV
 
-Since Vite replaces environment variables during the build step, the client side code cannot directly access dynamic ENVs in production.
-You have a few ways to get around this limitation:
+TanStack Start reads [environment variables](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables) at two different times:
 
-1. For values that are not deployment-dependent, define them in `diploi.yaml` using the [static import syntax](https://docs.diploi.com/reference/diploi-yaml#env). The values are exposed to the `Dockerfile` as `ARG` variables.
-2. For values that depend on a specific deployment (such as variables imported from other components in `diploi.yaml`, or configured in the **Environment** tab), use the [recommended way to use runtime ENVs in production](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables#runtime-client-environment-variables-in-production) for TanStack Start.
+1. **When the server runs.** Server code, such as server functions (`createServerFn`), server routes and middleware, reads `process.env` while the server runs. Use it for secrets, and for values that depend on a specific deployment (such as variables imported from other components in `diploi.yaml`, or configured in the **Environment** tab).
+2. **When the app is built.** `import.meta.env.VITE_*` is replaced during the build step. Only variables with the `VITE_` prefix reach code that runs in the browser, and everything they contain is visible there, so never give a secret a `VITE_` name. The build runs when the image is created, so only use these for values that are not deployment-dependent, and define those in `diploi.yaml` using the [static import syntax](https://docs.diploi.com/reference/diploi-yaml#env). The values are exposed to the `Dockerfile` as `ARG` variables.
+
+To use a deployment-dependent value in the browser, read it in a server function and return it from there, as in the [runtime client environment variables](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables#runtime-client-environment-variables-in-production) guide.
+
+To use a variable from another component in your code, import it in `diploi.yaml`. For example, to call a backend with the `api` identifier from server code:
+
+```yaml
+- name: TanStack Start
+  identifier: tanstack-start
+  env:
+    include:
+      - api.APP_INTERNAL_ENDPOINT:API_URL
+```
+
+Server code can use the `<HOST>_INTERNAL_ENDPOINT` address of a component, which stays inside the deployment. Code that runs in the browser needs the public `<HOST>_ENDPOINT` address.
 
 #### Ports
 
 The component serves on port **5173** in both development and production. If you change it, update all of these so they stay in sync:
 
 - `hosts[].port` in `diploi.yaml`
-- `EXPOSE` and `ENV PORT` in `Dockerfile` and `Dockerfile.dev`
-- `server.port` in `vite.config.ts` — Vite does not read `PORT` from the environment on its own
+- `EXPOSE` and `ENV PORT` in `Dockerfile` and `Dockerfile.dev`. The production server reads `PORT`
+- The fallback of `server.port` in `vite.config.ts`, which the development server uses when `PORT` is not set
 
 ## Links
 
 - [Adding TanStack Start to a project](https://docs.diploi.com/building/components/tanstack-start)
 - [TanStack Start documentation](https://tanstack.com/start/latest)
+- [TanStack Router documentation](https://tanstack.com/router/latest)
 - [React documentation](https://react.dev/)
 - [Vite documentation](https://vite.dev/)
 - [Nitro documentation](https://nitro.build/)
