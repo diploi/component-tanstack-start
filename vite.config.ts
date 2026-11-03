@@ -9,7 +9,8 @@ import { nitro } from 'nitro/vite'
 
 const config = defineConfig({
   resolve: { tsconfigPaths: true },
-  server: { port: Number(process.env.PORT) || 5173 },
+  // Diploi sets PORT to the port of the component's host in diploi.yaml
+  server: { port: Number(process.env.PORT) || 5173, strictPort: true },
   plugins: [
     devtools(),
     nitro({ rollupConfig: { external: [/^@sentry\//] } }),

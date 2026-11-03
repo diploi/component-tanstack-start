@@ -20,10 +20,7 @@ jobs:
         include:
           - name: TanStack Start
             folder: .
-            type: main
-          - name: TanStack Start Dev
-            folder: .
-            type: dev
+            type: main-dev
     steps:
       - name: Checkout code
         uses: actions/checkout@v3

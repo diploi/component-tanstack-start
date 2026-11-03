@@ -13,3 +13,8 @@ hosts:
 images:
   - identifier: app
     prebuildImage: public.ecr.aws/p8t2q7f4/diploi/component-tanstack-start:[tag]
+
+# Staging and production build the deployment's commit on its own machine, in the image above, with the deployment's
+# environment. Development runs the dev server on the working copy instead
+build:
+  command: diploi-pm install && NODE_ENV=production diploi-pm run build

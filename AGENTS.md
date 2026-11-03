@@ -11,12 +11,15 @@ rendered on the server by [Nitro](https://nitro.build/) and styled with Tailwind
 - Routes are the files in `src/routes/`. `src/routeTree.gen.ts` is generated from them by the `tanstackStart()` Vite
   plugin whenever the development server or a build runs, and by `npm run generate-routes` otherwise. Never edit it
   by hand.
-- Serves on port **5173** in every stage. The port is set in `hosts[].port` in `diploi.yaml`, `EXPOSE`/`ENV PORT` in
-  `Dockerfile` and `Dockerfile.dev`, and the fallback of `server.port` in `vite.config.ts`. Keep them in sync. The
-  development server gets it from `server.port`, which reads `PORT`, and the Nitro server reads `PORT` itself.
-- Development runs `npm run dev -- --host` (`Dockerfile.dev`). Staging and production run `npm run build`, which is
-  `vite build` and writes the Nitro server to `.output/`, **not** `dist/`, and then `npm start`, which is
-  `node .output/server/index.mjs` (`Dockerfile`).
+- Listens on `PORT`, which Diploi sets to the port of the `app` host in `diploi.yaml` (**5173** unless changed): the
+  development server through `server.port` in `vite.config.ts`, and the Nitro server by itself. To change the port,
+  change only the host's `port`. Never hardcode one: staging and production count a version as ready once it accepts
+  connections on `PORT`, and one that listens elsewhere never becomes ready.
+- Development runs `npm run dev`. Staging and production build each commit on the deployment with `npm run build`,
+  which is `vite build` and writes the Nitro server to `.output/`, **not** `dist/`, and then run `npm start`, which is
+  `node .output/server/index.mjs`. In staging and production the project folder is read-only while the server runs,
+  so server code never writes next to the code: a file needed only during one request goes to `/tmp`, data to a
+  database or another component.
 - The development server already allows the Diploi hosts. Add any other host to `server.allowedHosts` in
   `vite.config.ts`, and never set it to `true`.
 - `vite build` does not type-check, so a type error does not fail the build. Run `npx tsc --noEmit` for that.
@@ -32,15 +35,16 @@ TanStack Start reads env vars at two different times:
   also runs in the browser.
 - `import.meta.env.VITE_*` is replaced when `vite build` runs. It is the only way an env var reaches code in the
   browser, and everything in it is public, so never give a secret a `VITE_` name.
-- There is no runtime build in this component. Staging and production build when the image is built, before the
-  deployment's env vars exist, so a `VITE_` variable only has the static values from `diploi.yaml`, and `vite build`
-  only sees those once they are declared with `ARG` in the `builder` stage of `Dockerfile`. In development, the
-  development server has the deployment's values, so a `VITE_` variable that works there can still be empty in
-  staging and production.
-- For a value that depends on the deployment in the browser, such as another component's public `<HOST>_ENDPOINT`,
-  read it with `process.env` in a server function and return it from there, as in TanStack Start's
-  [runtime client environment variables](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables#runtime-client-environment-variables-in-production).
-  Server code can call another component at its `<HOST>_INTERNAL_ENDPOINT`.
+- Staging and production build each commit on the deployment, with the deployment's env vars, once: a restart reuses
+  the build, and a changed env var or a new commit builds again. So a `VITE_` variable has the deployment's value,
+  for example another component's public `<HOST>_ENDPOINT` imported under a `VITE_` name. If the build fails, the
+  previous version keeps running and the deployment page shows the log, so run `npm run build` before calling a
+  change done.
+- A value read with `process.env` in a server function and returned from there, as in TanStack Start's
+  [runtime client environment variables](https://tanstack.com/start/latest/docs/framework/react/guide/environment-variables#runtime-client-environment-variables-in-production),
+  changes without a build. Server code can call another component at its `<HOST>_INTERNAL_ENDPOINT`.
+- The image holds no code and no Dockerfile is in the project. System packages go into `initScript` (every start, as
+  root) or `preBuildScript` (only the build) of the component in `diploi.yaml`.
 
 ## TanStack AI tools
 
