@@ -25,6 +25,10 @@ rendered on the server by [Nitro](https://nitro.build/) and styled with Tailwind
 - `vite build` does not type-check, so a type error does not fail the build. Run `npx tsc --noEmit` for that.
   `npm run lint` runs ESLint with `@tanstack/eslint-config` (`eslint.config.js`), and `npm run check` only checks
   formatting with Prettier.
+- npm only runs a dependency's install script once the project approves it (`npm install-scripts approve <package>`,
+  saved per version in `allowScripts` of `package.json`, so again after an upgrade), as pnpm (`onlyBuiltDependencies`)
+  and Bun (`trustedDependencies`) do. A package that needs its script, such as Prisma for `prisma generate`, otherwise
+  installs incomplete without an error: approve it when adding it.
 
 ## Environment variables
 
